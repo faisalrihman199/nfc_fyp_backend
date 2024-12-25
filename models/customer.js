@@ -42,7 +42,7 @@ Customer.init({
         type: DataTypes.INTEGER,
         allowNull: false,
         references: {
-            model: 'users', // Name of the referenced table
+            model: 'Users', // Name of the referenced table
             key: 'id', // Primary key in the referenced table
         },
         onUpdate: 'CASCADE', // Updates foreign key on referenced table changes

@@ -48,7 +48,7 @@ Tag.init({
         type: DataTypes.INTEGER,
         allowNull: true,
         references: {
-            model: 'customers', 
+            model: 'Customers', 
             key: 'id', 
         },
         onUpdate: 'CASCADE',
