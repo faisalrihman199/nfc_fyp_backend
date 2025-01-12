@@ -37,6 +37,42 @@ const authController = {
             res.status(500).json({ success: false, message: "Error registering customer." });
         }
     },
+    getUserInfo: async (req, res) => {
+        const user = req.user;
+    
+        if (user.role === 'admin') {
+            return res.status(200).json({ success: true, data: user });
+        }
+    
+        try {
+            if (user.role === 'customer') {
+                try {
+                    // Use the Customer model to fetch customer information
+                    let customerInfo = await models.Customer.findOne({ where: { userId: user.id } });
+            
+                    if (!customerInfo) {
+                        return res.status(404).json({ success: false, message: "Customer does not exist" });
+                    }
+            
+                    // Add the user's email to the customer info
+                    customerInfo = { ...customerInfo.toJSON(), email: user.email };
+            
+                    // Send back the updated customer information
+                    return res.status(200).json({ success: true, data: customerInfo });
+                } catch (error) {
+                    console.error("Error fetching customer information:", error);
+                    return res.status(500).json({ success: false, message: "Error fetching customer information." });
+                }
+            }
+    
+            // If the role is not recognized
+            return res.status(403).json({ success: false, message: "Unauthorized access" });
+        } catch (error) {
+            console.error("Error fetching user information:", error);
+            res.status(500).json({ success: false, message: "Error fetching user information." });
+        }
+    },
+    
 
     login: async (req, res) => {
         const { email, password } = req.body;
@@ -50,8 +86,7 @@ const authController = {
             if (!isPasswordValid) {
                 return res.status(401).json({ success: false, message: "Invalid password" });
             }
-
-            const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, "nfc_project", { expiresIn: "7h" });
+            const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, "nfc_project");
             res.status(200).json({
                 success: true,
                 data: {

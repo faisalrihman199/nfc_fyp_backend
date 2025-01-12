@@ -48,13 +48,56 @@ exports.addTag = async (req, res) => {
         res.status(500).json({ success: false, message: 'Error adding tag' });
     }
 };
+exports.updateTag = async (req, res) => {
+    const { user } = req;
+    const { id, uid, tagType, information, status } = req.body; 
+    if (!id) {
+        return res.status(400).json({ success: false, message: 'Tag ID is required' });
+    }
+
+    const t = await sequelize.transaction();
+    try {
+        // Find the tag by its ID
+        const tag = await models.Tag.findByPk(id);
+        
+        if (!tag) {
+            return res.status(404).json({ success: false, message: 'Tag not found' });
+        }
+        if(user.role==='customer'){
+            const customer = await models.Customer.findOne({where:{userId:user.id}});
+            if(tag.customerId!==customer.id){
+                return res.status(403).json({ success: false, message: 'You are not authorized'});
+            }
+        }
+
+        // Update the tag's fields
+        await tag.update(
+            {
+                uid: uid || tag.uid,
+                tagType: tagType || tag.tagType,
+                information: information || tag.information,
+                status: status || tag.status
+            },
+            { transaction: t }
+        );
+
+        await t.commit();
+
+        res.status(200).json({ success: true, message: 'Tag updated successfully', data: tag });
+    } catch (error) {
+        console.error('Error updating tag:', error);
+        await t.rollback();
+        res.status(500).json({ success: false, message: 'Error updating tag' });
+    }
+};
 
 // Get tags by status and type (with pagination)
 exports.getTagsByQuery = async (req, res) => {
     const { user } = req;
     const { status, tagType, page = 1, pageSize = 10 } = req.query;  // Pagination and filter parameters
     const offset = (page - 1) * pageSize;
-
+    console.log("Status :", status);
+    
     try {
         let whereClause = { status };
 
@@ -90,91 +133,7 @@ exports.getTagsByQuery = async (req, res) => {
     }
 };
 
-// Get current customer tags
-exports.getCustomerTags = async (req, res) => {
-    const { user } = req;
 
-    try {
-        const customer = await models.Customer.findOne({
-            where: { userId: user.id },
-        });
-
-        if (!customer) {
-            return res.status(404).json({ success: false, message: 'Customer not found' });
-        }
-
-        const customerTags = await models.Tag.findAll({
-            where: { customerId: customer.id },
-        });
-
-        res.status(200).json({ success: true, data: customerTags });
-    } catch (error) {
-        console.error('Error fetching customer tags:', error);
-        res.status(500).json({ success: false, message: 'Error fetching customer tags' });
-    }
-};
-
-// Change tag info
-exports.changeTagInfo = async (req, res) => {
-    const { user } = req;
-    const { tagNumber, information } = req.body;
-    const t = await sequelize.transaction();
-
-    try {
-        const tag = await models.Tag.findOne({ where: { tagNumber } });
-
-        if (!tag) {
-            return res.status(404).json({ success: false, message: 'Tag not found' });
-        }
-
-        // Encrypt the new information
-        let encryptedInformation = encrypt(information);
-
-        await tag.update(
-            { information: encryptedInformation },
-            { transaction: t }
-        );
-
-        await t.commit();
-        res.status(200).json({ success: true, message: 'Tag information updated successfully', data: tag });
-    } catch (error) {
-        await t.rollback();
-        console.error('Error changing tag info:', error);
-        res.status(500).json({ success: false, message: 'Error changing tag info' });
-    }
-};
-
-// Change tag status (admin only)
-exports.changeTagStatus = async (req, res) => {
-    const { user } = req;
-    const { tagNumber, status } = req.body;
-
-    if (user.role !== 'admin') {
-        return res.status(401).json({ success: false, message: 'Permissions not allowed' });
-    }
-
-    const t = await sequelize.transaction();
-
-    try {
-        const tag = await models.Tag.findOne({ where: { tagNumber } });
-
-        if (!tag) {
-            return res.status(404).json({ success: false, message: 'Tag not found' });
-        }
-
-        await tag.update(
-            { status },
-            { transaction: t }
-        );
-
-        await t.commit();
-        res.status(200).json({ success: true, message: 'Tag status updated successfully', data: tag });
-    } catch (error) {
-        await t.rollback();
-        console.error('Error changing tag status:', error);
-        res.status(500).json({ success: false, message: 'Error changing tag status' });
-    }
-};
 
 function encrypt(text) {
     const iv = crypto.randomBytes(ivLength); // Generate a new IV each time
