@@ -72,6 +72,94 @@ const authController = {
             res.status(500).json({ success: false, message: "Error fetching user information." });
         }
     },
+    setUserInfo: async (req, res) => {
+        const user = req.user;
+    
+        // If the role is admin, allow changing only email and password in the User table
+        if (user.role === 'admin') {
+            const { email, password } = req.body;
+    
+            if (!email ) {
+                return res.status(400).json({ success: false, message: "Email or password must be provided" });
+            }
+            let hashedPassword;
+            if(password){
+                hashedPassword = await bcrypt.hash(password, 10);
+            }
+
+            try {
+                const existUser= await models.User.findOne({ where: { email:email } });
+                if(existUser && existUser.id !== user.id){
+                    return res.status(400).json({ success: false, message: "Email already exists"});
+                }
+
+                const updatedUser = await models.User.update(
+                    {
+                        email, 
+                        ...(password && { password: hashedPassword }) // Only add password if it's provided
+                    },
+                    { where: { id: user.id } }
+                );
+                if (updatedUser[0] === 0) {
+                    return res.status(404).json({ success: false, message: "User not found" });
+                }
+    
+                return res.status(200).json({ success: true, message: "User information updated successfully" });
+            } catch (error) {
+                console.error("Error updating admin user information:", error);
+                return res.status(500).json({ success: false, message: "Error updating user information" });
+            }
+        }
+    
+        // If the role is customer, allow changing email, password, and additional customer details
+        if (user.role === 'customer') {
+            const { email, password, firstName, lastName, phone, address } = req.body;
+    
+            if (!email && !firstName && !lastName && !phone && !address) {
+                return res.status(400).json({ success: false, message: "At least one field must be provided" });
+            }
+            let hashedPassword;
+            if(password){
+                hashedPassword = await bcrypt.hash(password, 10);
+            }
+
+    
+            try {
+                // Update User table for email and password
+                const updatedUser = await models.User.update(
+                    {
+                        email, 
+                        ...(password && { password: hashedPassword }) // Only add password if it's provided
+                    },
+                    { where: { id: user.id } }
+                );
+    
+                if (updatedUser[0] === 0) {
+                    return res.status(404).json({ success: false, message: "User not found" });
+                }
+    
+                // Update Customer table for additional details
+                const updatedCustomer = await models.Customer.update(
+                    { firstName, lastName, phone, address }, // Update customer details
+                    { where: { userId: user.id } }
+                );
+    
+                if (updatedCustomer[0] === 0) {
+                    return res.status(404).json({ success: false, message: "Customer details not found" });
+                }
+    
+                return res.status(200).json({ success: true, message: "Customer information updated successfully" });
+            } catch (error) {
+                console.error("Error updating customer information:", error);
+                return res.status(500).json({ success: false, message: "Error updating customer information" });
+            }
+        }
+    
+        // If the role is not recognized
+        return res.status(403).json({ success: false, message: "Unauthorized access" });
+    },
+    
+    
     
 
     login: async (req, res) => {
